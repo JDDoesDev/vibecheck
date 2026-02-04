@@ -1,0 +1,37 @@
+{
+  "name": "vibecheck-cc",
+  "version": "0.1.0",
+  "description": "Security scanner for vibe-coded projects - Claude Code extension",
+  "type": "module",
+  "bin": {
+    "vibecheck": "./bin/install.js"
+  },
+  "scripts": {
+    "postinstall": "node bin/install.js --global"
+  },
+  "keywords": [
+    "claude-code",
+    "security",
+    "scanner",
+    "vibe-coding",
+    "ai",
+    "cli"
+  ],
+  "author": "",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jddoesdev/vibecheck.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "bin/",
+    "commands/",
+    "skills/",
+    "hooks/",
+    "README.md",
+    "LICENSE"
+  ]
+}

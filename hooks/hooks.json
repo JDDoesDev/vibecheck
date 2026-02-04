@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"{{VIBECHECK_PATH}}/bin/scan.js\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
