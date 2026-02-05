@@ -1,6 +1,6 @@
 {
   "name": "goodvibesonly-cc",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Security scanner for vibe-coded projects - Claude Code extension",
   "type": "module",
   "bin": {
