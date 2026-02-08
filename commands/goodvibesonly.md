@@ -81,6 +81,39 @@ If clean:
 ✓ GoodVibesOnly passed - no security issues found in [N] files
 ```
 
+## Allowlist: `.goodvibesonly.json`
+
+Users can suppress specific findings by adding entries to `.goodvibesonly.json` in the project root:
+
+```json
+{
+  "allow": [
+    { "pattern": "XSS via dangerouslySetInnerHTML", "reason": "Sanitized with DOMPurify" },
+    { "path": "test/**", "reason": "Test files contain intentional patterns" },
+    { "pattern": "SQL Injection", "path": "src/db/raw.js", "reason": "Parameterized at call site" }
+  ]
+}
+```
+
+- `pattern` only: suppress that pattern in all files
+- `path` only: suppress all patterns in matching files (supports `*` and `**` globs)
+- `pattern` + `path`: suppress specific pattern in specific files
+- Every entry should have a `reason`
+- Pattern names must match exactly — run `node bin/scan.js --list-patterns` to see all names
+
+### Allowing Findings in Conversation
+
+When a user wants to allow a finding:
+
+1. Ask: **one-time** (this commit only) or **permanent**?
+2. Ask for a reason
+
+**One-time**: Write entry to `.goodvibesonly.json` (don't stage it), re-run commit, then remove the entry afterward.
+
+**Permanent**: Write entry to `.goodvibesonly.json`, re-run commit, leave the file for user to commit later.
+
+Always show the user exactly what was added to the config.
+
 ## After Scanning
 
 - If CRITICAL issues: Offer to fix them automatically

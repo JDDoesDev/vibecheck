@@ -160,6 +160,53 @@ goodvibesonly/
 └── README.md
 ```
 
+## Allowlist
+
+Suppress specific findings by adding a `.goodvibesonly.json` file to your project root:
+
+```json
+{
+  "allow": [
+    { "pattern": "XSS via dangerouslySetInnerHTML", "reason": "Sanitized with DOMPurify" },
+    { "path": "test/**", "reason": "Test files contain intentional patterns" },
+    { "pattern": "SQL Injection", "path": "src/db/raw.js", "reason": "Parameterized at call site" }
+  ]
+}
+```
+
+Each entry in the `allow` array supports:
+
+| Fields | Effect |
+|--------|--------|
+| `pattern` only | Suppress that pattern in all files |
+| `path` only | Suppress all patterns in matching files |
+| `pattern` + `path` | Suppress specific pattern in specific files |
+
+- `reason` is expected on every entry (warns if missing)
+- Pattern names must match exactly — run `node bin/scan.js --list-patterns` to see all names
+- `path` supports glob patterns (`*` for single directory, `**` for recursive)
+
+### Conversational Flow
+
+When GoodVibesOnly flags a finding in Claude Code, you can tell Claude to allow it:
+
+```
+You: allow the dangerouslySetInnerHTML one
+Claude: One-time (this commit only) or permanent?
+You: permanent
+Claude: What's the reason?
+You: sanitized with DOMPurify
+```
+
+- **One-time**: temporarily adds the entry, commits, then removes it
+- **Permanent**: adds the entry to `.goodvibesonly.json` for you to commit later
+
+### List All Patterns
+
+```bash
+node bin/scan.js --list-patterns
+```
+
 ## How It's Different
 
 - **Actually enforces** - Uses Claude Code's PreToolUse hooks to block commits, not just advisory

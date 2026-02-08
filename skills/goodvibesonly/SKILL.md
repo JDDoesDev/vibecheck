@@ -91,6 +91,56 @@ http://(?!localhost)              # Non-HTTPS
 1. Brief summary
 2. Proceed with the requested action
 
+## Allowlist Flow
+
+When a user wants to suppress a specific finding, follow this flow:
+
+1. **User says** something like "allow the dangerouslySetInnerHTML one" or "ignore the XSS finding"
+2. **Ask**: "One-time (this commit only) or permanent?"
+3. **Ask for reason**: "What's the reason for allowing this?" (e.g., "Sanitized with DOMPurify")
+
+### One-Time Allow
+
+1. Read existing `.goodvibesonly.json` (or create `{ "allow": [] }` if missing)
+2. Add the temporary entry to the `allow` array
+3. Write the file (**do not** stage it with `git add`)
+4. Re-run the commit command
+5. After commit completes, remove the temporary entry from `.goodvibesonly.json`
+6. If the file is now empty (`{ "allow": [] }`), delete it
+
+### Permanent Allow
+
+1. Read existing `.goodvibesonly.json` (or create `{ "allow": [] }` if missing)
+2. Add the entry to the `allow` array with the user's reason
+3. Write the file (leave it for the user to commit when ready)
+4. Re-run the commit command
+5. Tell the user: "Added permanent allowlist rule. You can commit `.goodvibesonly.json` when ready."
+
+### Config Format: `.goodvibesonly.json`
+
+```json
+{
+  "allow": [
+    { "pattern": "XSS via dangerouslySetInnerHTML", "reason": "Sanitized with DOMPurify" },
+    { "path": "test/**", "reason": "Test files contain intentional patterns" },
+    { "pattern": "SQL Injection", "path": "src/db/raw.js", "reason": "Parameterized at call site" }
+  ]
+}
+```
+
+- `pattern` only: suppress that pattern in all files
+- `path` only: suppress all patterns in matching files (supports `*` and `**` globs)
+- `pattern` + `path`: suppress specific pattern in specific files
+- Pattern names must match exactly — run `node bin/scan.js --list-patterns` to see all names
+
+### Show the User What Changed
+
+After adding an entry, show the user what was added:
+```
+Added to .goodvibesonly.json:
+  { "pattern": "XSS via dangerouslySetInnerHTML", "reason": "Sanitized with DOMPurify" }
+```
+
 ## Example Output
 
 ```

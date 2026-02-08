@@ -95,6 +95,58 @@ const SCANNABLE_EXTENSIONS = new Set([
   '.config', '.conf', '.cfg', '.ini'
 ]);
 
+function matchGlob(filePath, globPattern) {
+  // Convert glob pattern to regex
+  let regex = globPattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&') // Escape special regex chars (not * and ?)
+    .replace(/\*\*/g, '\0')               // Temp placeholder for **
+    .replace(/\*/g, '[^/]*')              // * matches anything except /
+    .replace(/\0/g, '.*')                 // ** matches anything including /
+    .replace(/\?/g, '[^/]');              // ? matches single non-/ char
+  return new RegExp(`^${regex}$`).test(filePath);
+}
+
+function loadAllowlist() {
+  const configPath = path.join(process.cwd(), '.goodvibesonly.json');
+  try {
+    if (!fs.existsSync(configPath)) return { allow: [] };
+    const raw = fs.readFileSync(configPath, 'utf8');
+    const config = JSON.parse(raw);
+    if (!Array.isArray(config.allow)) {
+      console.error('Warning: .goodvibesonly.json "allow" is not an array, ignoring');
+      return { allow: [] };
+    }
+    for (const entry of config.allow) {
+      if (!entry.reason) {
+        console.error(`Warning: allowlist entry missing "reason": ${JSON.stringify(entry)}`);
+      }
+    }
+    return config;
+  } catch (err) {
+    if (err instanceof SyntaxError) {
+      console.error(`Warning: .goodvibesonly.json has invalid JSON, ignoring: ${err.message}`);
+    }
+    return { allow: [] };
+  }
+}
+
+function isAllowed(patternName, filePath, allowlist) {
+  if (!allowlist || !allowlist.allow) return false;
+  for (const entry of allowlist.allow) {
+    const hasPattern = 'pattern' in entry;
+    const hasPath = 'path' in entry;
+
+    if (hasPattern && hasPath) {
+      if (entry.pattern === patternName && matchGlob(filePath, entry.path)) return true;
+    } else if (hasPattern) {
+      if (entry.pattern === patternName) return true;
+    } else if (hasPath) {
+      if (matchGlob(filePath, entry.path)) return true;
+    }
+  }
+  return false;
+}
+
 function shouldScanFile(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   const basename = path.basename(filePath).toLowerCase();
@@ -108,7 +160,7 @@ function shouldScanFile(filePath) {
   return SCANNABLE_EXTENSIONS.has(ext);
 }
 
-function scanFile(filePath) {
+function scanFile(filePath, allowlist) {
   const findings = [];
 
   if (!fs.existsSync(filePath)) return findings;
@@ -137,6 +189,8 @@ function scanFile(filePath) {
         const matches = line.match(regex);
 
         if (matches) {
+          if (isAllowed(name, filePath, allowlist)) return;
+
           findings.push({
             severity,
             type: name,
@@ -165,7 +219,7 @@ function getChangedFiles(staged = true) {
   }
 }
 
-function formatFindings(findings) {
+function formatFindings(findings, allowlist) {
   const bySeverity = { critical: [], high: [], medium: [] };
 
   for (const f of findings) {
@@ -177,6 +231,9 @@ function formatFindings(findings) {
   const total = findings.length;
   if (total === 0) {
     output += '✓ No security issues found\n';
+    if (allowlist && allowlist.allow.length > 0) {
+      output += `  (${allowlist.allow.length} allowlist rule${allowlist.allow.length === 1 ? '' : 's'} active)\n`;
+    }
     return output;
   }
 
@@ -208,11 +265,34 @@ function formatFindings(findings) {
 
   output += `Found ${bySeverity.critical.length} critical, ${bySeverity.high.length} high, ${bySeverity.medium.length} medium issues.\n`;
 
+  if (allowlist && allowlist.allow.length > 0) {
+    output += `(${allowlist.allow.length} allowlist rule${allowlist.allow.length === 1 ? '' : 's'} active — some findings may be suppressed)\n`;
+  }
+
   return output;
+}
+
+function listPatterns() {
+  let output = 'GoodVibesOnly Scanner — All Pattern Names\n\n';
+  for (const [severity, patterns] of Object.entries(PATTERNS)) {
+    output += `${severity.toUpperCase()}:\n`;
+    for (const { name } of patterns) {
+      output += `  - ${name}\n`;
+    }
+    output += '\n';
+  }
+  output += `Total: ${Object.values(PATTERNS).reduce((sum, p) => sum + p.length, 0)} patterns\n`;
+  console.log(output);
 }
 
 async function main() {
   const args = process.argv.slice(2);
+
+  if (args.includes('--list-patterns')) {
+    listPatterns();
+    process.exit(0);
+  }
+
   let files = [];
   let isHook = false;
 
@@ -278,15 +358,18 @@ async function main() {
     process.exit(0);
   }
 
+  // Load allowlist
+  const allowlist = loadAllowlist();
+
   // Scan all files
   const allFindings = [];
   for (const file of files) {
-    const findings = scanFile(file);
+    const findings = scanFile(file, allowlist);
     allFindings.push(...findings);
   }
 
   // Output results
-  const output = formatFindings(allFindings);
+  const output = formatFindings(allFindings, allowlist);
 
   const criticalCount = allFindings.filter(f => f.severity === 'critical').length;
 
